@@ -1,120 +1,129 @@
 // Dependencies
-var express = require('express');
-var http = require('http');
-var path = require('path');
-var socketIO = require('socket.io');
-var cards = require('cards');
-var app = express();
-var server = http.Server(app);
-var io = socketIO(server);
-var AWS = require("aws-sdk");
+const express = require('express');
+const http = require('http');
+const path = require('path');
+const socketIO = require('socket.io');
+const cards = require('cards');
+
+const app = express();
+const server = http.Server(app);
+const io = socketIO(server);
+const AWS = require('aws-sdk');
 
 AWS.config.loadFromPath('./server/config.json');
 AWS.config.update({
-  region: "us-west-2",
+  region: 'us-west-2',
 });
-var docClient = new AWS.DynamoDB.DocumentClient();
-var dynamodb = new AWS.DynamoDB();
-app.set('port', 5000);
-app.use('/static', express.static(__dirname + '/static'));
+const docClient = new AWS.DynamoDB.DocumentClient();
+
+app.set('port', 8080);
+app.use('/', express.static(`${__dirname}/../client/build`));
 // Routing
-app.get('/', function (request, response) {
-  response.sendFile(path.join(__dirname, 'index.html'));
+app.get('/', (request, response) => {
+  response.sendFile(path.join(__dirname, '../client/build/index.html'));
 });
-
-
 
 // Starts the server.
-server.listen(5000, function () {
+server.listen(8080, () => {
   console.log('Starting server on port 5000');
 });
-var players = {};
-var deck = [];
-var game = {}
-var addPlayer = (player) => {
-  var params = {
-    TableName: "users",
+const players = {};
+let deck = [];
+let game = {};
+const addPlayer = (player) => {
+  const params = {
+    TableName: 'users',
     Item: {
       ...player,
-      
-    }
-  }
-  docClient.put(params, function (err, data) {
+    },
+  };
+  docClient.put(params, (err, data) => {
     if (err) {
-      console.error("Unable to add item. Error JSON:", JSON.stringify(err, null, 2));
+      console.error('Unable to add item. Error JSON:', JSON.stringify(err, null, 2));
     } else {
-      console.log("Added item:", JSON.stringify(data, null, 2));
+      console.log('Added item:', JSON.stringify(data, null, 2));
     }
   });
-}
+};
 
-io.on('disconnect', function (socket) {
+io.on('disconnect', (socket) => {
   players[socket.id] = undefined;
-  socket.emit('players', Object.keys(players).map(player => players[player].firstName + ' ' + players[player].lastName))
-})
+  socket.emit(
+    'players',
+    Object.keys(players).map(player => `${players[player].firstName} ${players[player].lastName}`),
+  );
+});
 
-io.on('connection', function (socket) {
-  var params = {
-    TableName: "games",
-  }
+io.on('connection', (socket) => {
+  let params = {
+    TableName: 'games',
+  };
   docClient.scan(params, (err, data) => {
     if (err) {
-      console.error("Unable to scan the table. Error JSON:", JSON.stringify(err, null, 2));
+      console.error('Unable to scan the table. Error JSON:', JSON.stringify(err, null, 2));
     } else {
       // print all the movies
-      console.log("Scan succeeded.");
-      socket.emit('view games', data.Items)
-      data.Items.forEach(function (game) {
-        console.log(game);
-
-
-      })
+      socket.emit('view games', data.Items);
     }
   });
 
-  var params = {
-    TableName: "users",
-  }
+  params = {
+    TableName: 'users',
+  };
   docClient.scan(params, (err, data) => {
     if (err) {
-      console.error("Unable to scan the table. Error JSON:", JSON.stringify(err, null, 2));
+      console.error('Unable to scan the table. Error JSON:', JSON.stringify(err, null, 2));
     } else {
       // print all the movies
-      console.log("Scan succeeded.");
-      socket.emit('userList', data.Items)
+      socket.emit('userList', data.Items);
     }
   });
-
 
   socket.on('chooseGame', (newGame) => {
-    game = newGame
-    console.log(game)
-    socket.emit('currentGame', game)
-  })
-  socket.emit('players', Object.keys(players).map(player => players[player].firstName + ' ' + players[player].lastName))
-  socket.on('new player', function (player) {
-    player = { ...player, id: Date.now(),}
-    console.log(player)
+    game = newGame;
+    console.log(game);
+    socket.emit('currentGame', game);
+  });
+  socket.emit(
+    'players',
+    Object.keys(players).map(player => `${players[player].firstName} ${players[player].lastName}`),
+  );
+  socket.on('new player', (player) => {
+    player = { ...player, id: Date.now() };
     addPlayer(player);
     players[socket.id] = { ...player };
-    var playerList = Object.keys(players).map(player => players[player].firstName + ' ' + players[player].lastName)
-    console.log('playerList', playerList)
-    console.log('players', players)
-    socket.emit('joined', playerList)
-
+    const playerList = Object.keys(players).map(player => `${players[player].firstName} ${players[player].lastName}`);
+    socket.emit('joined', playerList);
   });
 
-  socket.on('deal', function () {
-    var deck = new cards.PokerDeck();
+  socket.on('choosePlayer', (player) => {
+    const playerParams = {
+      TableName: 'users',
+      Key: {
+        id: player,
+      },
+    };
+    docClient.get(playerParams, (err, newPlayer) => {
+      if (err) {
+        console.error('Unable to read item. Error JSON:', JSON.stringify(err, null, 2));
+      } else {
+        players[socket.id] = { ...newPlayer.Item };
+        const playerList = Object.keys(players).map(play => `${players[play].firstName} ${players[play].lastName}`);
+        socket.emit('joined', playerList);
+      }
+    });
+  });
+
+  socket.on('deal', () => {
+    deck = new cards.PokerDeck();
     deck.shuffleAll();
-    Object.keys(players).forEach(playerId => {
-      console.log('delt', playerId)
-      console.log('game', game)
-      var currentHand = deck.draw((game||{}).handCards || 5)
-      console.log('hand', currentHand)
-      players[playerId].currentHand = currentHand.map(card => ({ suit: card.suit, value: card.value }))
+    Object.keys(players).forEach((playerId) => {
+      const currentHand = deck.draw((game || {}).handCards || 5);
+      players[playerId].currentHand = currentHand.map(card => ({
+        suit: card.suit,
+        value: card.value,
+      }));
       io.to(playerId).emit('new hand', players[playerId].currentHand);
-    })
+    });
   });
-
 });

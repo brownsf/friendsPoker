@@ -9,6 +9,7 @@ import {
   gamesList,
   chooseGame,
   getUsers,
+  chooseUser,
 } from './socket';
 import UserForm from './components/UserForm';
 import Game from './components/Game';
@@ -19,6 +20,8 @@ class App extends Component {
     this.state = {};
     this.savePlayer = this.savePlayer.bind(this);
     this.setGame = this.setGame.bind(this);
+    this.setPlayer = this.setPlayer.bind(this);
+
     newHand((hand) => {
       console.log({ hand });
       this.setState({ player: { ...(this.state.player || {}), hand } });
@@ -37,10 +40,12 @@ class App extends Component {
     this.setState({ chosenGame: game });
     chooseGame(game);
   }
-  savePlayer(player) {
-    console.log('app', { player });
+  setPlayer(player) {
     this.setState({ player });
+  }
+  savePlayer(player) {
     newPlayer(player);
+    this.setPlayer(player);
   }
   render() {
     console.log(this.state);
@@ -59,7 +64,13 @@ class App extends Component {
           </Col>
         </Row>
         {!this.state.player && (
-          <UserForm users={this.state.allUsers} savePlayer={this.savePlayer} />
+          <UserForm
+            setPlayer={this.setPlayer}
+            chooseUser={chooseUser}
+            users={this.state.allUsers}
+            savePlayer={this.savePlayer}
+            currentPlayer={this.state.currentPlayer}
+          />
         )}
         {this.state.player && (
           <Game
