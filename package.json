@@ -4,7 +4,8 @@
   "description": "Nodejs and react app to play cards accross the internet",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "forever server/index.js"
   },
   "author": "",
   "license": "ISC",
