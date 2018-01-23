@@ -1,7 +1,10 @@
 import openSocket from 'socket.io-client';
 
-const host = process.env.NODE_ENV === 'production' ? 'friends-poker.appspot.com' : 'localhost:8080';
-const socket = openSocket(`http://${host}`);
+const host =
+  process.env.NODE_ENV === 'production'
+    ? 'https://friends-poker.appspot.com'
+    : 'http://localhost:8080';
+const socket = openSocket(host);
 
 export const newHand = (cb) => {
   socket.on('new hand', (hand) => {
